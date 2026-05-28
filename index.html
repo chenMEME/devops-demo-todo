@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo List</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; justify-content: center; padding: 2rem 1rem; }
+    .container { width: 100%; max-width: 480px; }
+    h1 { font-size: 1.8rem; color: #1a1a2e; margin-bottom: 1.5rem; text-align: center; }
+    .input-row { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .input-row input { flex: 1; padding: 0.75rem 1rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1rem; outline: none; transition: border-color .2s; }
+    .input-row input:focus { border-color: #4a6cf7; }
+    .input-row button { padding: 0.75rem 1.25rem; background: #4a6cf7; color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; transition: background .2s; }
+    .input-row button:hover { background: #3b5de7; }
+    .todo-list { list-style: none; }
+    .todo-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: #fff; border-radius: 8px; margin-bottom: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: box-shadow .2s; }
+    .todo-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+    .todo-item.completed .todo-text { text-decoration: line-through; color: #aaa; }
+    .todo-item.completed { background: #f8f9fa; }
+    .todo-check { width: 22px; height: 22px; cursor: pointer; accent-color: #4a6cf7; }
+    .todo-text { flex: 1; font-size: 1rem; color: #333; word-break: break-word; }
+    .todo-actions { display: flex; gap: 0.25rem; }
+    .todo-actions button { padding: 0.35rem 0.5rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; background: transparent; color: #888; transition: all .15s; }
+    .todo-actions button:hover { background: #f0f0f0; color: #333; }
+    .todo-actions .btn-del:hover { background: #fee; color: #e53e3e; }
+    .empty { text-align: center; color: #bbb; margin-top: 3rem; font-size: 0.95rem; }
+    .loading { text-align: center; color: #999; margin-top: 3rem; }
+    .error { text-align: center; color: #e53e3e; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📋 Todo List</h1>
+    <div class="input-row">
+      <input type="text" id="todoInput" placeholder="添加待办事项..." maxlength="200">
+      <button id="addBtn">添加</button>
+    </div>
+    <ul class="todo-list" id="todoList"></ul>
+    <div class="loading" id="loading">加载中...</div>
+    <div class="empty" id="empty" style="display:none">暂无待办事项，开始添加吧 ✨</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const supabaseUrl = 'https://lkkijxzbalhnpvqnljye.supabase.co'
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxra2lqeHpiYWxobnB2cW5sanllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDUyMjYsImV4cCI6MjA5NTQ4MTIyNn0.QMbMzigwhWF60F_fnJ5yNBeyPKZtDWlyMXRCaCBX9jI'
+    const sb = window.supabase.createClient(supabaseUrl, supabaseKey)
+
+    const input = document.getElementById('todoInput')
+    const addBtn = document.getElementById('addBtn')
+    const list = document.getElementById('todoList')
+    const loading = document.getElementById('loading')
+    const empty = document.getElementById('empty')
+
+    async function loadTodos() {
+      const { data, error } = await sb.from('todos').select('*').order('created_at', { ascending: false })
+      loading.style.display = 'none'
+      if (error) { console.error(error); return }
+      if (!data || data.length === 0) { empty.style.display = 'block'; return }
+      empty.style.display = 'none'
+      data.forEach(todo => renderTodo(todo))
+    }
+
+    function renderTodo(todo) {
+      const li = document.createElement('li')
+      li.className = 'todo-item' + (todo.completed ? ' completed' : '')
+      li.dataset.id = todo.id
+      li.innerHTML = `
+        <input type="checkbox" class="todo-check" ${todo.completed ? 'checked' : ''}>
+        <span class="todo-text">${escapeHtml(todo.text)}</span>
+        <div class="todo-actions">
+          <button class="btn-edit" title="编辑">✏️</button>
+          <button class="btn-del" title="删除">🗑️</button>
+        </div>
+      `
+      li.querySelector('.todo-check').addEventListener('change', async (e) => {
+        const completed = e.target.checked
+        await sb.from('todos').update({ completed }).eq('id', todo.id)
+        li.classList.toggle('completed', completed)
+      })
+      li.querySelector('.btn-edit').addEventListener('click', () => editTodo(li, todo))
+      li.querySelector('.btn-del').addEventListener('click', async () => {
+        await sb.from('todos').delete().eq('id', todo.id)
+        li.remove()
+        if (!list.children.length) empty.style.display = 'block'
+      })
+      list.appendChild(li)
+    }
+
+    function editTodo(li, todo) {
+      const span = li.querySelector('.todo-text')
+      const oldText = todo.text
+      const input = document.createElement('input')
+      input.type = 'text'
+      input.value = oldText
+      input.style.cssText = 'flex:1;padding:0.3rem 0.5rem;border:2px solid #4a6cf7;border-radius:6px;font-size:1rem;outline:none'
+      span.replaceWith(input)
+      input.focus()
+      input.select()
+      const save = async () => {
+        const newText = input.value.trim()
+        if (newText && newText !== oldText) {
+          await sb.from('todos').update({ text: newText }).eq('id', todo.id)
+          todo.text = newText
+        }
+        const newSpan = document.createElement('span')
+        newSpan.className = 'todo-text'
+        newSpan.textContent = newText || oldText
+        input.replaceWith(newSpan)
+      }
+      input.addEventListener('blur', save)
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur() } })
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement('div')
+      d.textContent = str
+      return d.innerHTML
+    }
+
+    addBtn.addEventListener('click', async () => {
+      const text = input.value.trim()
+      if (!text) return
+      const { data, error } = await sb.from('todos').insert({ text }).select().single()
+      if (error) { console.error(error); return }
+      empty.style.display = 'none'
+      renderTodo(data)
+      input.value = ''
+      list.firstChild?.scrollIntoView({ behavior: 'smooth' })
+    })
+
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') addBtn.click() })
+
+    loadTodos()
+  </script>
+</body>
+</html>
