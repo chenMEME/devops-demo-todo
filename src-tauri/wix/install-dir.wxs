@@ -1,0 +1,17 @@
+<!-- 让安装时自动套用软件名称文件夹 -->
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+    <CustomAction Id="ForceAppSubfolder" 
+      Property="INSTALLDIR" 
+      Value="[WIXUI_INSTALLDIR]\待办事项" 
+      Execute="firstSequence" />
+    <InstallUISequence>
+      <Custom Action="ForceAppSubfolder" After="CostFinalize">WIXUI_INSTALLDIR AND NOT INSTALLED</Custom>
+    </InstallUISequence>
+    <InstallExecuteSequence>
+      <Custom Action="ForceAppSubfolder" After="CostFinalize">WIXUI_INSTALLDIR AND NOT INSTALLED</Custom>
+    </InstallExecuteSequence>
+  </Fragment>
+</Wix>

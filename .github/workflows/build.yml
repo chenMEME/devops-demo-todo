@@ -1,0 +1,28 @@
+name: Build
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli
+
+      - name: Build MSI
+        run: tauri build --bundles nsis
+
+      - name: Upload Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: 待办事项_Setup
+          path: src-tauri/target/release/bundle/nsis/*.exe
